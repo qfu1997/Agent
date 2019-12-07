@@ -93,27 +93,49 @@ public class Agent20 extends AbstractNegotiationParty {
 
 	private double myAcceptThreshold() {
 		double acceptThreshold = 1;
-		// if myUtility > opponentUtility
-		if (this.time < 0.7 && this.myUtilityAtNP >= this.opponentUtilityAtNP) {
+		// if the nash point is balanced and myUtility > opponentUtility
+		if (this.time < 0.7 && isNashPoint && this.myUtilityAtNP >= this.opponentUtilityAtNP) {
 			acceptThreshold = myUtilityAtNP;
 		} else if (this.time > 0.95 && isNashPoint && this.myUtilityAtNP >= this.opponentUtilityAtNP) {
-			acceptThreshold = (myUtilityAtNP + opponentUtilityAtNP) / 2 - 0.1*time;
-		} else if (this.time > 0.95 && isNashPoint == false && this.myUtilityAtLK >= this.opponentUtilityAtLK) {
-			acceptThreshold = (myUtilityAtLK + opponentUtilityAtLK) / 2 - 0.1;
-		} else if (this.myUtilityAtNP >= this.opponentUtilityAtNP) {
+			acceptThreshold = (myUtilityAtNP + opponentUtilityAtNP) / 2 - 0.1;
+		} else if (isNashPoint && this.myUtilityAtNP >= this.opponentUtilityAtNP) {
 			acceptThreshold = (myUtilityAtNP + opponentUtilityAtNP) / 2;
 		} 
-		// if myUtility < opponentUtility
-		else if (this.time < 0.7 && this.myUtilityAtNP < this.opponentUtilityAtNP) {
+		// if the nash point is balanced BUT myUtility < opponentUtility
+		else if (this.time < 0.7 && isNashPoint && this.myUtilityAtNP < this.opponentUtilityAtNP) {
 			acceptThreshold = (myUtilityAtNP + opponentUtilityAtNP) / 2;
 		} else if (time > 0.95 && isNashPoint && this.myUtilityAtNP < this.opponentUtilityAtNP) {
-			acceptThreshold = myUtilityAtNP - 0.1*time;
-		} else if (this.time > 0.95 && isNashPoint == false && this.myUtilityAtLK < this.opponentUtilityAtLK) {
-			acceptThreshold = myUtilityAtLK - 0.05*time;
-		} else if (this.myUtilityAtNP < this.opponentUtilityAtNP) {
+			acceptThreshold = myUtilityAtNP - 0.1;
+		} else if (isNashPoint && this.myUtilityAtNP < this.opponentUtilityAtNP) {
 			acceptThreshold = (myUtilityAtNP + opponentUtilityAtNP) / 2 + 0.05 -0.1*time;
 		} 
-		return acceptThreshold;
+		// if the nash point is NOT balanced and myUtility > opponentUtility
+		else if (this.time < 0.7 && isNashPoint == false && this.myUtilityAtLK >= this.opponentUtilityAtLK) {
+			acceptThreshold = myUtilityAtLK - 0.1 * time;
+		} else if (this.time > 0.95 && isNashPoint == false && this.myUtilityAtLK >= this.opponentUtilityAtLK) {
+			acceptThreshold = (myUtilityAtLK + opponentUtilityAtLK) / 2 - 0.1;
+		} else if (isNashPoint == false && this.myUtilityAtLK >= this.opponentUtilityAtLK) {
+			acceptThreshold = (myUtilityAtLK + opponentUtilityAtLK) / 2;
+		} 
+		// if the nash point is NOT balanced and myUtility < opponentUtility
+		else if (this.time < 0.7 && isNashPoint == false && this.myUtilityAtLK < this.opponentUtilityAtLK) {
+			acceptThreshold = (myUtilityAtLK + opponentUtilityAtLK) / 2;
+		} else if (this.time > 0.95 && isNashPoint == false && this.myUtilityAtLK < this.opponentUtilityAtLK) {
+			acceptThreshold = myUtilityAtLK - 0.05*time;
+		} else if (isNashPoint == false && this.myUtilityAtLK < this.opponentUtilityAtLK) {
+			acceptThreshold = myUtilityAtLK + 0.09 - 0.1 * time;
+		}
+		
+		// if the acceptThreshold is too low
+		if (time < 0.7 && acceptThreshold < 0.85) {
+			acceptThreshold =0.85;
+		} else if (time < 0.9 && acceptThreshold < 0.8) {
+			acceptThreshold =0.8;
+		} else if (time < 0.95 && acceptThreshold < 0.75) {
+			acceptThreshold =0.75;
+		}
+		
+		return acceptThreshold;	
 	}
 
 	private double newOfferThreshold() {
@@ -288,10 +310,12 @@ public class Agent20 extends AbstractNegotiationParty {
 		if (this.time < 0.7) {
 			Bid bestBid = getRandomBidAboveThreshold(newOfferThreshold());
 			return bestBid;
+		} else if (time<0.95) {
+			//return getNashLaikaBid(nextOfferChoice);
+			return getHighUtilityBid();
 		} else {
 			return getNashLaikaBid(nextOfferChoice);
 		}
-
 	}
 
 	private Bid getNashLaikaBid(int[] nextOfferChoice) {
@@ -310,6 +334,36 @@ public class Agent20 extends AbstractNegotiationParty {
 		return bid;
 	}
 
+	public Bid getHighUtilityBid() {
+		HashMap<Integer, Bid> rdBid = new HashMap<Integer, Bid>();
+		Bid bid = null;
+		int closeUtilityBidNo = 0;
+		int generateTimes =0;
+		do {
+			bid = generateRandomBid();
+			generateTimes++;
+			if (distributionOpponent.getBidsUtility(bid)> 0.7
+					&& getEstimatedUtility(bid) > 0.8) {
+				rdBid.put(closeUtilityBidNo, bid);
+				closeUtilityBidNo++;
+			}
+		} while (closeUtilityBidNo < 100 && generateTimes < 200);	
+		if (rdBid.isEmpty()) {
+			return getRandomBidAboveThreshold(newOfferThreshold());
+		} else {
+			double maxUtility = 0;
+			for (Integer key : rdBid.keySet()) {
+				double bidUtility = getEstimatedUtility(rdBid.get(key));
+				if (bidUtility > maxUtility) {
+					bid = rdBid.get(key);
+					maxUtility = bidUtility;
+				}
+			}
+			System.out.println("ran High bid Utility: " + getEstimatedUtility(bid)+ " OPUtility:"+ distributionOpponent.getBidsUtility(bid));
+			return bid;
+		}
+	}
+	
 	public Bid getRandomBidAboveThreshold(double Threshold) {
 		double utilityOfBid = 0;
 		HashMap<Integer, Bid> rdBid = new HashMap<Integer, Bid>();
@@ -345,98 +399,165 @@ public class Agent20 extends AbstractNegotiationParty {
 	}
 
 	@Override
-	public AbstractUtilitySpace estimateUtilitySpace() {
-			Domain domain = userModel.getDomain();
-			AdditiveUtilitySpaceFactory factory = new AdditiveUtilitySpaceFactory(domain);
-			BidRanking br = userModel.getBidRanking();
-			
-			//Get order of bids
-			List<Bid> bidOrder = br.getBidOrder();
-			ArrayList<Bid> bids = new ArrayList<Bid>(bidOrder);
-			double numbOfBids = bids.size();
-			
-			if(numbOfBids + 10 <= domain.getNumberOfPossibleBids() && user.getElicitationCost() < 0.01)
+	public AbstractUtilitySpace estimateUtilitySpace() 
+	{
+		Domain domain = userModel.getDomain();
+		AdditiveUtilitySpaceFactory factory = new AdditiveUtilitySpaceFactory(domain);
+		BidRanking br = userModel.getBidRanking();
+		
+		//Get order of bids
+		List<Bid> bidOrder = br.getBidOrder();
+		ArrayList<Bid> bids = new ArrayList<Bid>(bidOrder);
+		double numbOfBids = bids.size();
+		double domainBids = domain.getNumberOfPossibleBids();
+		double cost = user.getElicitationCost();
+		
+		if(domainBids < 100)
+		{
+			if(numbOfBids + 10 <= domainBids && cost < 0.01)
 			{
 				Random r = new Random();
-				
+			
 				for (int q = 0; q < 10; q++)
 				{
 					Bid bidToAddInitially = domain.getRandomBid(r);
 					if(bidOrder.contains(bidToAddInitially))
-						continue;
-					
-					userModel = user.elicitRank(bidToAddInitially, userModel);
+						userModel = user.elicitRank(bidToAddInitially, userModel);
 				}
-				
 			}
-			
-			//Count frequency of values in BidRanking
-			HashMap<String, Integer> valueFreq = new HashMap<String, Integer>();
-			bids = new ArrayList<Bid>(bidOrder);
-			
-			
-			//Get low and high utility
-			double min = userModel.getBidRanking().getLowUtility();
-			double max = userModel.getBidRanking().getHighUtility();
-			
-			//quadratic interpolation 
-			//y - min = (max-min) * (x/ numbOfBids)^2  [https://study.com/academy/lesson/interpolation-in-statistics-definition-formula-example.html]
-				
-			for(int i = 0; i < numbOfBids; i++)
+		}
+		else if (domainBids >= 100 && domainBids < 1000)
+		{
+			if(numbOfBids >= 20)
 			{
-				Bid current = bids.get(i);
-					
-				double currentUtility = (Math.pow((i/ numbOfBids), 2) * (max - min)) + min;
-					
-				List<Issue> issues = current.getIssues();
-				for (Issue issue : issues)
+				if(numbOfBids + 10 <= domainBids && cost < 0.005)
 				{
-					int no = issue.getNumber();
-					ValueDiscrete v = (ValueDiscrete) current.getValue(no);
-					double oldUtil = factory.getUtility(issue, v);
-					valueFreq.put(v.getValue(), valueFreq.getOrDefault(v.getValue(), 0) + 1); //[https://www.geeksforgeeks.org/properties-getordefaultkey-defaultvalue-method-in-java-with-examples/]
-					factory.setUtility(issue, v, oldUtil + currentUtility);
+					Random r = new Random();
+			
+					for (int q = 0; q < 10; q++)
+					{
+						Bid bidToAddInitially = domain.getRandomBid(r);
+						if(bidOrder.contains(bidToAddInitially))
+							userModel = user.elicitRank(bidToAddInitially, userModel);
+					}
 				}
 			}
+			else
+			{
+				if(cost < 0.01)
+				{
+					Random r = new Random();
+					
+					for (int q = 0; q < 10; q++)
+					{
+						Bid bidToAddInitially = domain.getRandomBid(r);
+						if(bidOrder.contains(bidToAddInitially))
+							userModel = user.elicitRank(bidToAddInitially, userModel);
+					}
+				}
+			}
+		}
+		else
+		{
+			if(numbOfBids >= 20)
+			{
+				if(numbOfBids + 10 <= domainBids && cost < 0.003)
+				{
+					Random r = new Random();
 			
+					for (int q = 0; q < 10; q++)
+					{
+						Bid bidToAddInitially = domain.getRandomBid(r);
+						if(bidOrder.contains(bidToAddInitially))
+							userModel = user.elicitRank(bidToAddInitially, userModel);
+					}
+				}
+			}
+			else
+			{
+				if(cost < 0.01)
+				{
+					Random r = new Random();
+					
+					for (int q = 0; q < 10; q++)
+					{
+						Bid bidToAddInitially = domain.getRandomBid(r);
+						if(bidOrder.contains(bidToAddInitially))
+							userModel = user.elicitRank(bidToAddInitially, userModel);
+					}
+				}
+			}
+		}
+		
+		//Count frequency of values in BidRanking
+		HashMap<String, Integer> valueFreq = new HashMap<String, Integer>();
+		bids = new ArrayList<Bid>(bidOrder);
+		
+		//Get low and high utility
+		double min = userModel.getBidRanking().getLowUtility();
+		double max = userModel.getBidRanking().getHighUtility();
+		
+		//quadratic interpolation 
+		//y - min = (max-min) * (x/ numbOfBids)^2  [https://study.com/academy/lesson/interpolation-in-statistics-definition-formula-example.html]
 			
-			//JohnnyBlack approach to estimate weights
-			List<Issue> issues = factory.getDomain().getIssues();
-			ArrayList<Double> issueWeight = new ArrayList<Double>();
-			double forNormalization = 0.0;
-			
+		for(int i = 0; i < numbOfBids; i++)
+		{
+			Bid current = bids.get(i);
+				
+			double currentUtility = (Math.pow((i/ numbOfBids), 2) * (max - min)) + min;
+				
+			List<Issue> issues = current.getIssues();
 			for (Issue issue : issues)
 			{
-				IssueDiscrete issueDiscrete = (IssueDiscrete) issue;
-				ArrayList<Integer> valuesFreq = new ArrayList<Integer>();
-				double sumOfValueWeights = 0.0;
-				
-				for (ValueDiscrete valueDiscrete : issueDiscrete.getValues())
-				{
-					int specificValueFreq = valueFreq.get(valueDiscrete.getValue());
-					valuesFreq.add(specificValueFreq);
-				}
-				
-				for(int i = 0; i < valuesFreq.size(); i++)
-				{
-					sumOfValueWeights += (Math.pow(valuesFreq.get(i), 2) / Math.pow(numbOfBids, 2));
-				}
-				issueWeight.add(sumOfValueWeights);
+				int no = issue.getNumber();
+				ValueDiscrete v = (ValueDiscrete) current.getValue(no);
+				double oldUtil = factory.getUtility(issue, v);
+				valueFreq.put(v.getValue(), valueFreq.getOrDefault(v.getValue(), 0) + 1); //[https://www.geeksforgeeks.org/properties-getordefaultkey-defaultvalue-method-in-java-with-examples/]
+				factory.setUtility(issue, v, oldUtil + currentUtility);
 			}
+		}
+		
+		
+		//JohnnyBlack approach to estimate weights
+		List<Issue> issues = factory.getDomain().getIssues();
+		ArrayList<Double> issueWeight = new ArrayList<Double>();
+		double forNormalization = 0.0;
+		
+		for (Issue issue : issues)
+		{
+			IssueDiscrete issueDiscrete = (IssueDiscrete) issue;
+			ArrayList<Integer> valuesFreq = new ArrayList<Integer>();
+			double sumOfValueWeights = 0.0;
 			
-			for(int j = 0; j < issueWeight.size(); j++)
-				forNormalization += issueWeight.get(j);
-			
-			int iterate = 0;
-			for (Issue issue : issues)
+			for (ValueDiscrete valueDiscrete : issueDiscrete.getValues())
 			{
-				factory.setWeight(issue, (issueWeight.get(iterate)/forNormalization));
-				iterate++;
+				int specificValueFreq = valueFreq.get(valueDiscrete.getValue());
+				valuesFreq.add(specificValueFreq);
 			}
-			return factory.getUtilitySpace();
+			
+			for(int i = 0; i < valuesFreq.size(); i++)
+			{
+				sumOfValueWeights += (Math.pow(valuesFreq.get(i), 2) / Math.pow(numbOfBids, 2));
+			}
+			issueWeight.add(sumOfValueWeights);
+		}
+		
+		for(int j = 0; j < issueWeight.size(); j++)
+			forNormalization += issueWeight.get(j);
+		
+		int iterate = 0;
+		for (Issue issue : issues)
+		{
+			factory.setWeight(issue, (issueWeight.get(iterate)/forNormalization));
+			iterate++;
+		}
+		
+		
+		return factory.getUtilitySpace();
 	}
 
-	public double getEstimatedUtility(Bid b) {
+	public double getEstimatedUtility(Bid b)
+	{
 		AdditiveUtilitySpace space = (AdditiveUtilitySpace) estimateUtilitySpace();
 		List<Bid> bidOrder = userModel.getBidRanking().getBidOrder();
 		
