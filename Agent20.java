@@ -19,7 +19,6 @@ import genius.core.issue.Value;
 import genius.core.issue.ValueDiscrete;
 import genius.core.parties.AbstractNegotiationParty;
 import genius.core.parties.NegotiationInfo;
-import genius.core.timeline.Timeline;
 import genius.core.uncertainty.AdditiveUtilitySpaceFactory;
 import genius.core.uncertainty.BidRanking;
 import genius.core.utility.AbstractUtilitySpace;
@@ -126,7 +125,6 @@ public class Agent20 extends AbstractNegotiationParty {
 			acceptThreshold = myUtilityAtLK + 0.09 - 0.1 * time;
 		}
 		
-		// if the acceptThreshold is too low
 		if (time < 0.7 && acceptThreshold < 0.85) {
 			acceptThreshold =0.85;
 		} else if (time < 0.9 && acceptThreshold < 0.8) {
@@ -141,9 +139,9 @@ public class Agent20 extends AbstractNegotiationParty {
 	private double newOfferThreshold() {
 		double newOfferThreshold = 1;
 		if (time < 0.2) {
-			newOfferThreshold = 0.5;
-		} else if (time < 0.5) {
 			newOfferThreshold = 0.8;
+		} else if (time < 0.5) {
+			newOfferThreshold = 0.9;
 		} else {
 			newOfferThreshold = myAcceptThreshold();
 		}
